@@ -1,23 +1,26 @@
 import Navigation from "@/components/Navigation";
-import ProblemCard from "@/components/ProblemCard";
+import ProblemCardV2 from "@/components/ProblemCardV2";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { mockProblems } from "@/data/mockProblems";
+import { useProblems } from "@/hooks/useProblems";
 import { useState } from "react";
 import { Filter, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Index = () => {
   const [sortBy, setSortBy] = useState("newest");
   const [filterCategory, setFilterCategory] = useState("all");
+  const { problems, loading, toggleUpvote } = useProblems();
+  const { user } = useAuth();
 
-  const categories = ["all", "finance", "health", "productivity", "technology", "lifestyle", "other"];
+  const categories = ["all", "finance", "health", "productivity", "technology", "lifestyle", "education", "transport", "other"];
 
-  const filteredAndSortedProblems = mockProblems
+  const filteredAndSortedProblems = problems
     .filter(problem => filterCategory === "all" || problem.category === filterCategory)
     .sort((a, b) => {
       if (sortBy === "newest") {
-        return new Date(b.timeAgo).getTime() - new Date(a.timeAgo).getTime();
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       }
       return b.upvotes - a.upvotes;
     });
@@ -39,10 +42,10 @@ const Index = () => {
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
             A crowdsourced platform where people share daily problems and entrepreneurs find opportunities to create solutions.
           </p>
-          <Link to="/post">
+          <Link to={user ? "/post" : "/auth"}>
             <Button className="bg-gradient-primary hover:shadow-primary transition-all duration-300">
               <Plus size={16} className="mr-2" />
-              Post Your Problem
+              {user ? "Post Your Problem" : "Sign In to Post"}
             </Button>
           </Link>
         </div>
@@ -86,13 +89,25 @@ const Index = () => {
 
         {/* Problems Feed */}
         <div className="space-y-6">
-          {filteredAndSortedProblems.map((problem) => (
-            <ProblemCard key={problem.id} problem={problem} />
-          ))}
+          {loading ? (
+            <div className="space-y-4">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="animate-pulse bg-card rounded-lg p-6">
+                  <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
+                  <div className="h-3 bg-muted rounded w-1/2 mb-4"></div>
+                  <div className="h-16 bg-muted rounded"></div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            filteredAndSortedProblems.map((problem) => (
+              <ProblemCardV2 key={problem.id} problem={problem} onUpvote={toggleUpvote} />
+            ))
+          )}
         </div>
 
         {/* Empty State */}
-        {filteredAndSortedProblems.length === 0 && (
+        {!loading && filteredAndSortedProblems.length === 0 && (
           <div className="text-center py-12">
             <p className="text-muted-foreground">No problems found for the selected filters.</p>
             <Button variant="outline" className="mt-4" onClick={() => {
