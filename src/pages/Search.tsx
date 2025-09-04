@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Search as SearchIcon, Filter, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Problem } from '@/hooks/useProblems';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Search = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -16,6 +17,7 @@ const Search = () => {
   const [loading, setLoading] = useState(false);
   const [sortBy, setSortBy] = useState('newest');
   const [filterCategory, setFilterCategory] = useState('all');
+  const { user } = useAuth();
 
   const categories = [
     'all', 'finance', 'health', 'productivity', 'technology', 'lifestyle', 
@@ -41,6 +43,7 @@ const Search = () => {
           *,
           profiles!problems_user_id_fkey (full_name, username, avatar_url),
           problem_upvotes!left (user_id),
+          problem_downvotes!left (user_id),
           comments!left (id)
         `);
 
@@ -63,11 +66,18 @@ const Search = () => {
 
       if (error) throw error;
 
-      const processedProblems = data?.map(problem => ({
-        ...problem,
-        user_upvoted: false, // TODO: Check user upvotes
-        comments_count: problem.comments?.length || 0
-      })) as Problem[];
+      const processedProblems = data?.map(problem => {
+        const { problem_upvotes, problem_downvotes, comments, ...rest } = problem;
+        return {
+          ...rest,
+          profiles: Array.isArray(problem.profiles) ? problem.profiles[0] : problem.profiles,
+          user_upvoted: user ? problem_upvotes.some((upvote: { user_id: string }) => upvote.user_id === user.id) : false,
+          user_downvoted: user ? problem_downvotes.some((downvote: { user_id: string }) => downvote.user_id === user.id) : false,
+          comments_count: comments?.length || 0,
+          upvotes: problem_upvotes?.length || 0,
+          downvotes: problem_downvotes?.length || 0,
+        } as Problem;
+      });
 
       setProblems(processedProblems || []);
     } catch (error) {
@@ -90,9 +100,28 @@ const Search = () => {
     setProblems([]);
   };
 
-  const handleUpvote = (problemId: string) => {
-    // TODO: Implement upvote functionality
-    console.log('Upvote problem:', problemId);
+  const handleUpvote = async (problemId: string) => {
+    if (!user) return;
+
+    const { error } = await supabase.rpc('handle_problem_upvote', { p_problem_id: problemId, p_user_id: user.id });
+
+    if (error) {
+      console.error('Error upvoting problem:', error);
+    } else {
+      performSearch();
+    }
+  };
+
+  const handleDownvote = async (problemId: string) => {
+    if (!user) return;
+
+    const { error } = await supabase.rpc('handle_problem_downvote', { p_problem_id: problemId, p_user_id: user.id });
+    
+    if (error) {
+      console.error('Error downvoting problem:', error);
+    } else {
+      performSearch();
+    }
   };
 
   return (
@@ -189,7 +218,12 @@ const Search = () => {
           ) : problems.length > 0 ? (
             <div className="space-y-6">
               {problems.map((problem) => (
-                <ProblemCardV2 key={problem.id} problem={problem} onUpvote={handleUpvote} />
+                <ProblemCardV2 
+                  key={problem.id} 
+                  problem={problem} 
+                  onUpvote={() => handleUpvote(problem.id)} 
+                  onDownvote={() => handleDownvote(problem.id)} 
+                />
               ))}
             </div>
           ) : searchQuery ? (

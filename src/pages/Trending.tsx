@@ -1,11 +1,10 @@
 import Navigation from "@/components/Navigation";
-import ProblemCard from "@/components/ProblemCard";
-import { mockProblems } from "@/data/mockProblems";
+import { useProblems } from "@/contexts/ProblemsContext";
+import ProblemCardV2 from "@/components/ProblemCardV2";
 import { TrendingUp, Trophy, Award } from "lucide-react";
 
 const Trending = () => {
-  // Sort problems by upvotes (descending)
-  const trendingProblems = [...mockProblems].sort((a, b) => b.upvotes - a.upvotes);
+  const { problems: trendingProblems, loading, handleUpvote, handleDownvote } = useProblems();
 
   const getTrendingIcon = (index: number) => {
     if (index === 0) return <Trophy className="text-yellow-500" size={20} />;
@@ -50,7 +49,7 @@ const Trending = () => {
           </div>
           <div className="bg-card p-6 rounded-lg border border-border shadow-card text-center">
             <div className="text-2xl font-bold text-primary mb-1">
-              {trendingProblems.reduce((sum, p) => sum + p.comments, 0)}
+              {trendingProblems.reduce((sum, p) => sum + (p.comments_count || 0), 0)}
             </div>
             <div className="text-sm text-muted-foreground">Total Comments</div>
           </div>
@@ -58,16 +57,26 @@ const Trending = () => {
 
         {/* Trending Problems */}
         <div className="space-y-6">
-          {trendingProblems.map((problem, index) => (
-            <div key={problem.id} className="relative">
-              <div className="absolute -left-4 top-4 z-10 bg-card rounded-full p-2 border border-border shadow-sm">
-                {getTrendingIcon(index)}
+          {loading ? (
+            <p>Loading trending problems...</p>
+          ) : (
+            trendingProblems
+              .sort((a, b) => b.upvotes - a.upvotes)
+              .map((problem, index) => (
+              <div key={problem.id} className="relative">
+                <div className="absolute -left-4 top-4 z-10 bg-card rounded-full p-2 border border-border shadow-sm">
+                  {getTrendingIcon(index)}
+                </div>
+                <div className="ml-8">
+                  <ProblemCardV2
+                    problem={problem}
+                    onUpvote={() => handleUpvote(problem.id)}
+                    onDownvote={() => handleDownvote(problem.id)}
+                  />
+                </div>
               </div>
-              <div className="ml-8">
-                <ProblemCard problem={problem} />
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
 
         {/* Call to Action */}

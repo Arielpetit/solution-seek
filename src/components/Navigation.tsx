@@ -1,15 +1,19 @@
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { TrendingUp, Plus, User, Home, LogOut, Settings, Bell } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { TrendingUp, Plus, User, Home, LogOut, Settings, Bell, LayoutGrid, Check } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useNotifications, Notification } from "@/hooks/useNotifications";
+import { formatDistanceToNow } from "date-fns";
 
 const Navigation = () => {
   const location = useLocation();
   const { user, signOut } = useAuth();
   const { toast } = useToast();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
 
   const isActive = (path: string) => {
     return location.pathname === path;
@@ -80,12 +84,25 @@ const Navigation = () => {
           <div className="flex items-center space-x-2">
             {user ? (
               <>
-                <Button variant="ghost" size="sm" className="relative">
-                  <Bell size={16} />
-                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full text-[8px] flex items-center justify-center text-white">
-                    3
-                  </span>
-                </Button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" size="sm" className="relative">
+                      <Bell size={16} />
+                      {unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full text-[10px] flex items-center justify-center text-white">
+                          {unreadCount}
+                        </span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80" align="end">
+                    <NotificationPanel
+                      notifications={notifications}
+                      onMarkAsRead={markAsRead}
+                      onMarkAllAsRead={markAllAsRead}
+                    />
+                  </PopoverContent>
+                </Popover>
                 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -108,6 +125,12 @@ const Navigation = () => {
                       <Link to="/profile" className="flex items-center">
                         <User className="mr-2 h-4 w-4" />
                         <span>Profile</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/dashboard" className="flex items-center">
+                        <LayoutGrid className="mr-2 h-4 w-4" />
+                        <span>Dashboard</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem>
@@ -137,3 +160,54 @@ const Navigation = () => {
 };
 
 export default Navigation;
+
+const NotificationPanel = ({ notifications, onMarkAsRead, onMarkAllAsRead }: { notifications: Notification[], onMarkAsRead: (id: string) => void, onMarkAllAsRead: () => void }) => {
+  const getNotificationMessage = (notification: Notification) => {
+    switch(notification.type) {
+      case 'new_comment':
+        return `New comment on your problem: "${notification.data.problem_title}"`;
+      case 'new_solution':
+        return `New solution for your problem: "${notification.data.problem_title}"`;
+      case 'collaboration_request':
+        return `New collaboration request for your solution: "${notification.data.solution_title}"`;
+      case 'collaboration_accepted':
+        return `Your collaboration request for "${notification.data.solution_title}" was accepted.`;
+      default:
+        return 'New notification';
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-between items-center pb-2 border-b">
+        <h4 className="font-medium">Notifications</h4>
+        <Button variant="ghost" size="sm" onClick={onMarkAllAsRead}>Mark all as read</Button>
+      </div>
+      {notifications.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-4">No new notifications.</p>
+      ) : (
+        <div className="max-h-80 overflow-y-auto">
+          {notifications.map(n => (
+            <div key={n.id} className={`p-2 rounded-lg flex items-start gap-3 ${!n.is_read ? 'bg-blue-500/10' : ''}`}>
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={n.profiles?.avatar_url} />
+                <AvatarFallback>{n.profiles?.full_name?.[0]}</AvatarFallback>
+              </Avatar>
+              <div className="flex-1">
+                <p className="text-sm">
+                  <span className="font-semibold">{n.profiles?.full_name}</span> {getNotificationMessage(n)}
+                </p>
+                <p className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}</p>
+              </div>
+              {!n.is_read && (
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onMarkAsRead(n.id)}>
+                  <Check size={14} />
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};

@@ -2,7 +2,7 @@ import Navigation from "@/components/Navigation";
 import ProblemCardV2 from "@/components/ProblemCardV2";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useProblems } from "@/hooks/useProblems";
+import { useProblems } from "@/contexts/ProblemsContext";
 import { useState } from "react";
 import { Filter, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -11,7 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const Index = () => {
   const [sortBy, setSortBy] = useState("newest");
   const [filterCategory, setFilterCategory] = useState("all");
-  const { problems, loading, toggleUpvote } = useProblems();
+  const { problems, loading, handleUpvote, handleDownvote } = useProblems();
   const { user } = useAuth();
 
   const categories = ["all", "finance", "health", "productivity", "technology", "lifestyle", "education", "transport", "other"];
@@ -101,7 +101,12 @@ const Index = () => {
             </div>
           ) : (
             filteredAndSortedProblems.map((problem) => (
-              <ProblemCardV2 key={problem.id} problem={problem} onUpvote={toggleUpvote} />
+              <ProblemCardV2
+                key={problem.id}
+                problem={problem}
+                onUpvote={handleUpvote}
+                onDownvote={handleDownvote}
+              />
             ))
           )}
         </div>

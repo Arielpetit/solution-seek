@@ -8,7 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Lightbulb } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
+import { useProblems } from "@/contexts/ProblemsContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 const PostProblem = () => {
   const [title, setTitle] = useState("");
@@ -17,6 +20,8 @@ const PostProblem = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { refetch: refetchProblems } = useProblems();
+  const { user } = useAuth();
 
   const categories = [
     { value: "finance", label: "Finance & Money" },
@@ -29,26 +34,53 @@ const PostProblem = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    if (!user) {
+      toast({
+        title: "Authentication Error",
+        description: "You must be logged in to post a problem.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!title.trim() || !description.trim() || !category) {
       toast({
         title: "Missing Information",
         description: "Please fill in all required fields.",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
 
     setIsSubmitting(true);
-    
-    // Simulate API call
-    setTimeout(() => {
+
+    try {
+      const { error } = await supabase.from("problems").insert({
+        title,
+        description,
+        category,
+        user_id: user.id,
+      });
+
+      if (error) throw error;
+
       toast({
         title: "Problem Posted Successfully!",
-        description: "Your problem has been shared with the community."
+        description: "Your problem has been shared with the community.",
       });
+      refetchProblems();
       navigate("/");
-    }, 1000);
+    } catch (error) {
+      console.error("Error posting problem:", error);
+      toast({
+        title: "Error",
+        description: "There was an error posting your problem. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

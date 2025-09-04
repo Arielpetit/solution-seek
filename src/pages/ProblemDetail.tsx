@@ -8,12 +8,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
-  ChevronUp, 
-  MessageCircle, 
-  User, 
-  Clock, 
-  ArrowLeft, 
-  Users, 
+  ChevronUp,
+  ChevronDown,
+  MessageCircle,
+  User,
+  Clock,
+  ArrowLeft,
+  Users,
   DollarSign,
   Send,
   Lightbulb,
@@ -24,6 +25,7 @@ import Navigation from '@/components/Navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useNotify } from '@/hooks/useNotify';
 import { formatDistanceToNow } from 'date-fns';
 
 interface Problem {
@@ -34,11 +36,12 @@ interface Problem {
   upvotes: number;
   created_at: string;
   user_id: string;
-  profiles?: {
+  downvotes: number;
+  profiles: {
     full_name: string;
     username: string;
     avatar_url: string;
-  };
+  } | null;
 }
 
 interface Solution {
@@ -49,11 +52,35 @@ interface Solution {
   status: string;
   created_at: string;
   user_id: string;
-  profiles?: {
+  profiles: {
     full_name: string;
     username: string;
     avatar_url: string;
-  };
+  } | null;
+  user_upvoted?: boolean;
+  solution_upvotes: { user_id: string }[];
+  solution_collaborators: {
+    user_id: string;
+    status: string;
+    profiles: {
+      full_name: string;
+      username: string;
+      avatar_url: string;
+    } | null;
+  }[];
+  user_collaboration_status?: 'pending' | 'accepted' | 'rejected' | null;
+  total_funding?: number;
+  solution_funding: Funding[];
+}
+
+interface Funding {
+  id: string;
+  amount: number;
+  currency: string;
+  profiles: {
+    full_name: string;
+    avatar_url: string;
+  } | null;
 }
 
 interface Comment {
@@ -61,17 +88,18 @@ interface Comment {
   content: string;
   created_at: string;
   user_id: string;
-  profiles?: {
+  profiles: {
     full_name: string;
     username: string;
     avatar_url: string;
-  };
+  } | null;
 }
 
 const ProblemDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { createNotification } = useNotify();
   
   const [problem, setProblem] = useState<Problem | null>(null);
   const [solutions, setSolutions] = useState<Solution[]>([]);
@@ -81,6 +109,8 @@ const ProblemDetail = () => {
   const [newSolution, setNewSolution] = useState({ title: '', description: '' });
   const [showSolutionForm, setShowSolutionForm] = useState(false);
   const [hasUpvoted, setHasUpvoted] = useState(false);
+  const [hasDownvoted, setHasDownvoted] = useState(false);
+  const [solutionUpvotes, setSolutionUpvotes] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (id) {
@@ -95,24 +125,33 @@ const ProblemDetail = () => {
         .from('problems')
         .select(`
           *,
-          profiles!problems_user_id_fkey (full_name, username, avatar_url)
+          profiles (full_name, username, avatar_url)
         `)
         .eq('id', id)
         .single();
 
       if (problemError) throw problemError;
-      setProblem(problemData as Problem);
+      setProblem(problemData as unknown as Problem);
 
       // Check if user has upvoted
       if (user) {
-        const { data: upvoteData } = await supabase
+        const { data: upvoteData, error: upvoteError } = await supabase
           .from('problem_upvotes')
-          .select('id')
+          .select('problem_id')
           .eq('problem_id', id)
           .eq('user_id', user.id)
           .single();
         
         setHasUpvoted(!!upvoteData);
+
+        const { data: downvoteData, error: downvoteError } = await supabase
+          .from('problem_downvotes')
+          .select('problem_id')
+          .eq('problem_id', id)
+          .eq('user_id', user.id)
+          .single();
+        
+        setHasDownvoted(!!downvoteData);
       }
 
       // Fetch solutions
@@ -120,26 +159,46 @@ const ProblemDetail = () => {
         .from('solutions')
         .select(`
           *,
-          profiles!solutions_user_id_fkey (full_name, username, avatar_url)
+          profiles (full_name, username, avatar_url),
+          solution_upvotes (user_id),
+          solution_collaborators (
+            user_id,
+            status,
+            profiles (full_name, username, avatar_url)
+          ),
+          solution_funding (amount, currency, profiles (full_name, avatar_url))
         `)
         .eq('problem_id', id)
         .order('upvotes', { ascending: false });
 
       if (solutionsError) throw solutionsError;
-      setSolutions(solutionsData as Solution[] || []);
+      
+      const processedSolutions = solutionsData?.map(solution => {
+        const { profiles, ...rest } = solution;
+        const collaboration = solution.solution_collaborators.find(c => c.user_id === user?.id);
+        return {
+          ...rest,
+          profiles: Array.isArray(profiles) ? profiles[0] : profiles,
+          user_upvoted: user ? solution.solution_upvotes.some((upvote) => upvote.user_id === user.id) : false,
+          user_collaboration_status: collaboration ? (collaboration.status as 'pending' | 'accepted' | 'rejected') : null,
+          total_funding: solution.solution_funding.reduce((acc, f) => acc + f.amount, 0),
+        };
+      });
+      
+      setSolutions((processedSolutions as unknown as Solution[]) || []);
 
       // Fetch comments
       const { data: commentsData, error: commentsError } = await supabase
         .from('comments')
         .select(`
           *,
-          profiles!comments_user_id_fkey (full_name, username, avatar_url)
+          profiles (full_name, username, avatar_url)
         `)
         .eq('problem_id', id)
         .order('created_at', { ascending: true });
 
       if (commentsError) throw commentsError;
-      setComments(commentsData as Comment[] || []);
+      setComments(commentsData as unknown as Comment[] || []);
 
     } catch (error) {
       console.error('Error fetching problem data:', error);
@@ -164,31 +223,49 @@ const ProblemDetail = () => {
     }
 
     try {
-      if (hasUpvoted) {
-        // Remove upvote
-        await supabase
-          .from('problem_upvotes')
-          .delete()
-          .eq('problem_id', id)
-          .eq('user_id', user.id);
-        
-        setHasUpvoted(false);
-        setProblem(prev => prev ? { ...prev, upvotes: prev.upvotes - 1 } : null);
-      } else {
-        // Add upvote
-        await supabase
-          .from('problem_upvotes')
-          .insert({ problem_id: id, user_id: user.id });
-        
-        setHasUpvoted(true);
-        setProblem(prev => prev ? { ...prev, upvotes: prev.upvotes + 1 } : null);
-      }
+      const { data, error } = await supabase.rpc('handle_problem_upvote', {
+        problem_id_arg: id,
+        user_id_arg: user.id,
+      });
+
+      if (error) throw error;
+      
+      fetchProblemData();
     } catch (error) {
       console.error('Error handling upvote:', error);
       toast({
         title: "Error",
         description: "Failed to update upvote",
         variant: "destructive",
+      });
+    }
+  };
+
+  const handleProblemDownvote = async () => {
+    if (!user || !id) {
+      toast({
+        title: 'Please log in',
+        description: 'You must be logged in to downvote.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('handle_problem_downvote', {
+        problem_id_arg: id,
+        user_id_arg: user.id,
+      });
+
+      if (error) throw error;
+
+      fetchProblemData();
+    } catch (error) {
+      console.error('Error downvoting problem:', error);
+      toast({
+        title: 'Error',
+        description: 'Could not register your downvote.',
+        variant: 'destructive',
       });
     }
   };
@@ -206,19 +283,29 @@ const ProblemDetail = () => {
         })
         .select(`
           *,
-          profiles!comments_user_id_fkey (full_name, username, avatar_url)
+          profiles (full_name, username, avatar_url)
         `)
         .single();
 
       if (error) throw error;
 
-      setComments(prev => [...prev, data as Comment]);
+      setComments(prev => [...prev, data as unknown as Comment]);
       setNewComment('');
       
       toast({
         title: "Comment added",
         description: "Your comment has been posted successfully",
       });
+      
+      if (problem && user && problem.user_id !== user.id) {
+        createNotification(
+          problem.user_id,
+          'new_comment',
+          { problem_title: problem.title, comment_content: newComment },
+          user.id,
+          `/problem/${id}`
+        );
+      }
     } catch (error) {
       console.error('Error adding comment:', error);
       toast({
@@ -243,13 +330,19 @@ const ProblemDetail = () => {
         })
         .select(`
           *,
-          profiles!solutions_user_id_fkey (full_name, username, avatar_url)
+          profiles (full_name, username, avatar_url)
         `)
         .single();
 
       if (error) throw error;
 
-      setSolutions(prev => [data as Solution, ...prev]);
+      const newSolutionWithDefaults = {
+        ...data,
+        solution_upvotes: [],
+        user_upvoted: false,
+      };
+
+      setSolutions(prev => [newSolutionWithDefaults as unknown as Solution, ...prev]);
       setNewSolution({ title: '', description: '' });
       setShowSolutionForm(false);
       
@@ -257,6 +350,16 @@ const ProblemDetail = () => {
         title: "Solution proposed",
         description: "Your solution has been added successfully",
       });
+
+      if (problem && user && problem.user_id !== user.id) {
+        createNotification(
+          problem.user_id,
+          'new_solution',
+          { problem_title: problem.title, solution_title: newSolution.title },
+          user.id,
+          `/problem/${id}`
+        );
+      }
     } catch (error) {
       console.error('Error adding solution:', error);
       toast({
@@ -264,6 +367,125 @@ const ProblemDetail = () => {
         description: "Failed to add solution",
         variant: "destructive",
       });
+    }
+  };
+  
+  const handleSolutionUpvote = async (solutionId: string) => {
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to upvote solutions",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const solution = solutions.find(s => s.id === solutionId);
+    if (!solution) return;
+
+    try {
+      if (solution.user_upvoted) {
+        // Remove upvote
+        await supabase
+          .from('solution_upvotes')
+          .delete()
+          .eq('solution_id', solutionId)
+          .eq('user_id', user.id);
+      } else {
+        // Add upvote
+        await supabase
+          .from('solution_upvotes')
+          .insert({ solution_id: solutionId, user_id: user.id });
+      }
+
+      // Update local state
+      setSolutions(prev => prev.map(s =>
+        s.id === solutionId
+          ? {
+              ...s,
+              user_upvoted: !s.user_upvoted,
+              upvotes: s.user_upvoted ? s.upvotes - 1 : s.upvotes + 1
+            }
+          : s
+      ));
+    } catch (error) {
+      console.error('Error handling solution upvote:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update upvote",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCollaborationRequest = async (solutionId: string) => {
+    if (!user) {
+      toast({ title: "Authentication required", description: "Please sign in to collaborate", variant: "destructive" });
+      return;
+    }
+
+    const solution = solutions.find(s => s.id === solutionId);
+    if (!solution) return;
+
+    if (solution.user_id === user.id) {
+      toast({ title: "This is your solution", description: "You cannot collaborate on your own solution.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      if (solution.user_collaboration_status) {
+        toast({ title: "Request already sent", description: "You have already sent a collaboration request for this solution." });
+        return;
+      }
+
+      await supabase.from('solution_collaborators').insert({ solution_id: solutionId, user_id: user.id });
+      
+      setSolutions(prev => prev.map(s =>
+        s.id === solutionId
+          ? { ...s, user_collaboration_status: 'pending' }
+          : s
+      ));
+      
+      toast({ title: "Request Sent", description: "Your collaboration request has been sent to the solution owner." });
+
+      if (user && solution.user_id) {
+        createNotification(
+          solution.user_id,
+          'collaboration_request',
+          { solution_title: solution.title },
+          user.id,
+          `/dashboard`
+        );
+      }
+    } catch (error) {
+      console.error('Error sending collaboration request:', error);
+      toast({ title: "Error", description: "Failed to send collaboration request.", variant: "destructive" });
+    }
+  };
+
+  const handleFunding = async (solutionId: string, amount: number) => {
+    if (!user) {
+      toast({ title: "Authentication required", description: "Please sign in to fund a solution", variant: "destructive" });
+      return;
+    }
+    if (amount <= 0) {
+      toast({ title: "Invalid amount", description: "Please enter a positive amount.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      await supabase.from('solution_funding').insert({ solution_id: solutionId, user_id: user.id, amount, currency: 'USD' });
+      
+      setSolutions(prev => prev.map(s =>
+        s.id === solutionId
+          ? { ...s, total_funding: (s.total_funding || 0) + amount }
+          : s
+      ));
+      
+      toast({ title: "Funding Successful", description: `Thank you for your contribution of $${amount}!` });
+    } catch (error) {
+      console.error('Error funding solution:', error);
+      toast({ title: "Error", description: "Failed to process funding.", variant: "destructive" });
     }
   };
 
@@ -333,6 +555,19 @@ const ProblemDetail = () => {
                   <ChevronUp size={24} />
                   <span className="text-lg font-semibold">{problem.upvotes}</span>
                 </Button>
+                <Button
+                 onClick={handleProblemDownvote}
+                 variant="ghost"
+                 size="sm"
+                 className={`h-auto p-3 flex flex-col items-center transition-colors ${
+                   hasDownvoted
+                     ? "text-destructive bg-destructive/10"
+                     : "text-muted-foreground hover:text-destructive"
+                 }`}
+               >
+                 <ChevronDown size={24} />
+                 <span className="text-lg font-semibold">{problem.downvotes}</span>
+               </Button>
               </div>
               
               <div className="flex-1">
@@ -508,54 +743,13 @@ const ProblemDetail = () => {
 
             <div className="space-y-4">
               {solutions.map((solution) => (
-                <Card key={solution.id} className="bg-gradient-card">
-                  <CardContent className="pt-4">
-                    <div className="flex items-start gap-4">
-                      <div className="flex flex-col items-center gap-1">
-                        <Button variant="ghost" size="sm" className="h-auto p-2 flex flex-col items-center">
-                          <ChevronUp size={20} />
-                          <span className="text-sm font-medium">{solution.upvotes}</span>
-                        </Button>
-                      </div>
-                      
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-lg mb-2">{solution.title}</h3>
-                        <p className="text-foreground mb-4 whitespace-pre-wrap">{solution.description}</p>
-                        
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Avatar className="w-6 h-6">
-                                <AvatarImage src={solution.profiles?.avatar_url} />
-                                <AvatarFallback>
-                                  {solution.profiles?.full_name?.charAt(0) || 'U'}
-                                </AvatarFallback>
-                              </Avatar>
-                              <span>{solution.profiles?.full_name || 'Anonymous'}</span>
-                            </div>
-                            <span className="text-xs text-muted-foreground">
-                              {formatDistanceToNow(new Date(solution.created_at), { addSuffix: true })}
-                            </span>
-                            <Badge variant="outline" className="text-xs">
-                              {solution.status}
-                            </Badge>
-                          </div>
-                          
-                          <div className="flex gap-2">
-                            <Button variant="outline" size="sm">
-                              <Heart size={14} className="mr-1" />
-                              Support
-                            </Button>
-                            <Button variant="outline" size="sm">
-                              <Users size={14} className="mr-1" />
-                              Collaborate
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <SolutionCard
+                  key={solution.id}
+                  solution={solution}
+                  onUpvote={handleSolutionUpvote}
+                  onCollaborate={handleCollaborationRequest}
+                  onFund={handleFunding}
+                />
               ))}
               
               {solutions.length === 0 && (
@@ -606,9 +800,28 @@ const ProblemDetail = () => {
                 
                 <div className="mt-6">
                   <h4 className="font-medium mb-3">Current Team Members</h4>
-                  <div className="text-center py-4 text-muted-foreground">
-                    <Users size={32} className="mx-auto mb-2 opacity-50" />
-                    <p>No team members yet. Be the first to join!</p>
+                  <div className="space-y-3">
+                    {solutions.flatMap(s => s.solution_collaborators || [])
+                      .filter(c => c.status === 'accepted')
+                      .map(collaborator => (
+                        <div key={collaborator.user_id} className="flex items-center gap-3">
+                          <Avatar className="w-8 h-8">
+                            <AvatarImage src={collaborator.profiles?.avatar_url} />
+                            <AvatarFallback>{collaborator.profiles?.full_name?.[0]}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="text-sm font-medium">{collaborator.profiles?.full_name}</p>
+                            <p className="text-xs text-muted-foreground">@{collaborator.profiles?.username}</p>
+                          </div>
+                        </div>
+                      ))
+                    }
+                    {solutions.flatMap(s => s.solution_collaborators || []).filter(c => c.status === 'accepted').length === 0 && (
+                      <div className="text-center py-4 text-muted-foreground">
+                        <Users size={32} className="mx-auto mb-2 opacity-50" />
+                        <p>No team members yet. Be the first to join!</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -627,11 +840,11 @@ const ProblemDetail = () => {
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                   <div className="text-center p-4 bg-card/50 rounded-lg">
-                    <div className="text-2xl font-bold text-green-500">$0</div>
+                    <div className="text-2xl font-bold text-green-500">${solutions.reduce((acc, s) => acc + (s.total_funding || 0), 0)}</div>
                     <div className="text-sm text-muted-foreground">Raised</div>
                   </div>
                   <div className="text-center p-4 bg-card/50 rounded-lg">
-                    <div className="text-2xl font-bold text-blue-500">0</div>
+                    <div className="text-2xl font-bold text-blue-500">{solutions.flatMap(s => s.solution_funding || []).length}</div>
                     <div className="text-sm text-muted-foreground">Backers</div>
                   </div>
                   <div className="text-center p-4 bg-card/50 rounded-lg">
@@ -674,10 +887,26 @@ const ProblemDetail = () => {
                 </div>
 
                 <div className="mt-6">
-                  <h4 className="font-medium mb-3">Interested Investors</h4>
-                  <div className="text-center py-4 text-muted-foreground">
-                    <DollarSign size={32} className="mx-auto mb-2 opacity-50" />
-                    <p>No investors yet. Be the first to support this problem!</p>
+                  <h4 className="font-medium mb-3">Recent Supporters</h4>
+                  <div className="space-y-3">
+                    {solutions.flatMap(s => s.solution_funding || []).slice(0, 5).map((fund: Funding) => (
+                      <div key={fund.id} className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="w-8 h-8">
+                            <AvatarImage src={fund.profiles?.avatar_url} />
+                            <AvatarFallback>{fund.profiles?.full_name?.[0]}</AvatarFallback>
+                          </Avatar>
+                          <p className="text-sm font-medium">{fund.profiles?.full_name}</p>
+                        </div>
+                        <p className="text-sm font-semibold text-green-500">${fund.amount}</p>
+                      </div>
+                    ))}
+                    {solutions.flatMap(s => s.solution_funding || []).length === 0 && (
+                      <div className="text-center py-4 text-muted-foreground">
+                        <DollarSign size={32} className="mx-auto mb-2 opacity-50" />
+                        <p>No supporters yet. Be the first to fund this problem!</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -690,3 +919,94 @@ const ProblemDetail = () => {
 };
 
 export default ProblemDetail;
+
+interface SolutionCardProps {
+  solution: Solution;
+  onUpvote: (solutionId: string) => void;
+  onCollaborate: (solutionId: string) => void;
+  onFund: (solutionId: string, amount: number) => void;
+}
+
+const SolutionCard = ({ solution, onUpvote, onCollaborate, onFund }: SolutionCardProps) => {
+  const [fundAmount, setFundAmount] = useState(10);
+
+  const handleFundClick = () => {
+    onFund(solution.id, fundAmount);
+  };
+  
+  const collaborationButtonText = () => {
+    switch (solution.user_collaboration_status) {
+      case 'pending': return 'Request Sent';
+      case 'accepted': return 'View Team';
+      default: return 'Collaborate';
+    }
+  };
+  
+  return (
+    <Card className="bg-gradient-card">
+      <CardContent className="pt-4">
+        <div className="flex items-start gap-4">
+          <div className="flex flex-col items-center gap-1">
+            <Button
+              onClick={() => onUpvote(solution.id)}
+              variant="ghost"
+              size="sm"
+              className={`h-auto p-2 flex flex-col items-center transition-colors ${
+                solution.user_upvoted
+                  ? "text-primary bg-primary/10"
+                  : "text-muted-foreground hover:text-primary"
+              }`}
+            >
+              <ChevronUp size={20} />
+              <span className="text-sm font-medium">{solution.upvotes}</span>
+            </Button>
+          </div>
+          
+          <div className="flex-1">
+            <h3 className="font-semibold text-lg mb-2">{solution.title}</h3>
+            <p className="text-foreground mb-4 whitespace-pre-wrap">{solution.description}</p>
+            
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Avatar className="w-6 h-6">
+                    <AvatarImage src={solution.profiles?.avatar_url} />
+                    <AvatarFallback>
+                      {solution.profiles?.full_name?.charAt(0) || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span>{solution.profiles?.full_name || 'Anonymous'}</span>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {formatDistanceToNow(new Date(solution.created_at), { addSuffix: true })}
+                </span>
+                <Badge variant="outline" className="text-xs">
+                  {solution.status}
+                </Badge>
+              </div>
+              
+              <div className="flex gap-2 items-center">
+                <div className="text-sm font-semibold text-green-500">
+                  ${solution.total_funding || 0}
+                </div>
+                <Button variant="outline" size="sm" onClick={handleFundClick}>
+                  <Heart size={14} className="mr-1" />
+                  Support
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onCollaborate(solution.id)}
+                  disabled={solution.user_collaboration_status === 'pending' || solution.user_collaboration_status === 'accepted'}
+                >
+                  <Users size={14} className="mr-1" />
+                  {collaborationButtonText()}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};

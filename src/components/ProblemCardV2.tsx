@@ -2,8 +2,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ChevronUp, MessageCircle, User, Clock, Heart, Share2 } from "lucide-react";
-import { Problem } from "@/hooks/useProblems";
+import { ChevronUp, ChevronDown, MessageCircle, User, Clock, Heart, Share2 } from "lucide-react";
+import { Problem } from "@/contexts/ProblemsContext";
 import { formatDistanceToNow } from "date-fns";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,9 +12,10 @@ import { useToast } from "@/hooks/use-toast";
 interface ProblemCardProps {
   problem: Problem;
   onUpvote: (problemId: string) => void;
+  onDownvote: (problemId: string) => void;
 }
 
-const ProblemCardV2 = ({ problem, onUpvote }: ProblemCardProps) => {
+const ProblemCardV2 = ({ problem, onUpvote, onDownvote }: ProblemCardProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -28,6 +29,18 @@ const ProblemCardV2 = ({ problem, onUpvote }: ProblemCardProps) => {
       return;
     }
     onUpvote(problem.id);
+  };
+
+  const handleDownvote = () => {
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to downvote problems",
+        variant: "destructive",
+      });
+      return;
+    }
+    onDownvote(problem.id);
   };
 
   const categoryColors: Record<string, string> = {
@@ -86,13 +99,25 @@ const ProblemCardV2 = ({ problem, onUpvote }: ProblemCardProps) => {
               variant="ghost"
               size="sm"
               className={`h-auto p-2 flex flex-col items-center transition-colors ${
-                problem.user_upvoted 
-                  ? "text-primary bg-primary/10" 
+                problem.user_upvoted
+                  ? "text-primary bg-primary/10"
                   : "text-muted-foreground hover:text-primary"
               }`}
             >
               <ChevronUp size={20} />
-              <span className="text-sm font-medium">{problem.upvotes}</span>
+            </Button>
+            <span className="text-sm font-medium">{problem.upvotes - problem.downvotes}</span>
+            <Button
+              onClick={handleDownvote}
+              variant="ghost"
+              size="sm"
+              className={`h-auto p-2 flex flex-col items-center transition-colors ${
+                problem.user_downvoted
+                  ? "text-destructive bg-destructive/10"
+                  : "text-muted-foreground hover:text-destructive"
+              }`}
+            >
+              <ChevronDown size={20} />
             </Button>
           </div>
         </div>

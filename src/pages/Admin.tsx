@@ -23,6 +23,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
+import { Database } from '@/integrations/supabase/types';
+
+type Report = Database['public']['Tables']['reports']['Row'] & {
+  reporter: Pick<Database['public']['Tables']['profiles']['Row'], 'id' | 'username'> | null;
+};
 
 interface AdminStats {
   totalUsers: number;
@@ -31,15 +36,6 @@ interface AdminStats {
   totalComments: number;
   totalFunding: number;
   recentActivity: number;
-}
-
-interface ReportedContent {
-  id: string;
-  type: 'problem' | 'solution' | 'comment';
-  content: string;
-  reporter: string;
-  reported_at: string;
-  status: 'pending' | 'resolved' | 'dismissed';
 }
 
 const Admin = () => {
@@ -53,7 +49,7 @@ const Admin = () => {
     totalFunding: 0,
     recentActivity: 0
   });
-  const [reportedContent, setReportedContent] = useState<ReportedContent[]>([]);
+  const [reportedContent, setReportedContent] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
 
   // In a real app, you'd check if user has admin role
@@ -89,25 +85,26 @@ const Admin = () => {
         recentActivity: 42 // TODO: Calculate recent activity
       });
 
-      // Fetch reported content (mock data for now)
-      setReportedContent([
-        {
-          id: '1',
-          type: 'problem',
-          content: 'This is spam content that should be removed...',
-          reporter: 'user123',
-          reported_at: new Date().toISOString(),
-          status: 'pending'
-        },
-        {
-          id: '2',
-          type: 'comment',
-          content: 'Inappropriate comment with offensive language...',
-          reporter: 'user456',
-          reported_at: new Date(Date.now() - 86400000).toISOString(),
-          status: 'pending'
-        }
-      ]);
+      // Fetch reported content
+      const { data: reports, error: reportsError } = await supabase
+        .from('reports')
+        .select(`
+          *,
+          reporter:reporter_id (id, username)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (reportsError) {
+        console.error('Error fetching reports:', reportsError);
+        toast({
+          title: "Error fetching reports",
+          description: reportsError.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setReportedContent(reports as Report[]);
 
     } catch (error) {
       console.error('Error fetching admin data:', error);
@@ -116,19 +113,34 @@ const Admin = () => {
     }
   };
 
-  const handleContentAction = (id: string, action: 'approve' | 'remove' | 'dismiss') => {
-    setReportedContent(prev => 
-      prev.map(item => 
-        item.id === id 
-          ? { ...item, status: action === 'approve' ? 'resolved' : 'dismissed' }
-          : item
-      )
-    );
+  const handleContentAction = async (id: string, action: 'approve' | 'remove' | 'dismiss') => {
+    const newStatus = action === 'approve' ? 'resolved' : 'dismissed';
 
-    toast({
-      title: "Action completed",
-      description: `Content has been ${action}d successfully`,
-    });
+    const { error } = await supabase
+      .from('reports')
+      .update({ status: newStatus, updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error updating report status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update the report status.",
+        variant: "destructive"
+      });
+    } else {
+      setReportedContent(prev =>
+        prev.map(item =>
+          item.id === id ? { ...item, status: newStatus } : item
+        )
+      );
+
+      toast({
+        title: "Action completed",
+        description: `Content has been ${action === 'remove' ? 'dismissed and flagged for removal' : newStatus} successfully`,
+      });
+    }
+    // TODO: Add logic to actually remove/hide the content if action is 'remove'
   };
 
   if (!isAdmin) {
@@ -301,12 +313,12 @@ const Admin = () => {
                           </Badge>
                         </div>
                         <span className="text-sm text-muted-foreground">
-                          {formatDistanceToNow(new Date(report.reported_at), { addSuffix: true })}
+                          {formatDistanceToNow(new Date(report.created_at), { addSuffix: true })}
                         </span>
                       </div>
                       
                       <p className="text-sm text-muted-foreground mb-3">
-                        Reported by: <span className="font-medium">{report.reporter}</span>
+                        Reported by: <span className="font-medium">{report.reporter?.username || 'Unknown User'}</span>
                       </p>
                       
                       <div className="bg-muted/50 rounded p-3 mb-4">
