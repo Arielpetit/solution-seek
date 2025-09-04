@@ -14,7 +14,305 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      collaborations: {
+        Row: {
+          collaborator_id: string | null
+          created_at: string | null
+          id: string
+          message: string | null
+          problem_id: string
+          requester_id: string
+          solution_id: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          collaborator_id?: string | null
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          problem_id: string
+          requester_id: string
+          solution_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          collaborator_id?: string | null
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          problem_id?: string
+          requester_id?: string
+          solution_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collaborations_problem_id_fkey"
+            columns: ["problem_id"]
+            isOneToOne: false
+            referencedRelation: "problems"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "collaborations_solution_id_fkey"
+            columns: ["solution_id"]
+            isOneToOne: false
+            referencedRelation: "solutions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comments: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          problem_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          problem_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          problem_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_problem_id_fkey"
+            columns: ["problem_id"]
+            isOneToOne: false
+            referencedRelation: "problems"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      funding_interests: {
+        Row: {
+          amount_range: string | null
+          created_at: string | null
+          id: string
+          investor_id: string
+          message: string | null
+          problem_id: string
+          solution_id: string | null
+          status: string | null
+        }
+        Insert: {
+          amount_range?: string | null
+          created_at?: string | null
+          id?: string
+          investor_id: string
+          message?: string | null
+          problem_id: string
+          solution_id?: string | null
+          status?: string | null
+        }
+        Update: {
+          amount_range?: string | null
+          created_at?: string | null
+          id?: string
+          investor_id?: string
+          message?: string | null
+          problem_id?: string
+          solution_id?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funding_interests_problem_id_fkey"
+            columns: ["problem_id"]
+            isOneToOne: false
+            referencedRelation: "problems"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funding_interests_solution_id_fkey"
+            columns: ["solution_id"]
+            isOneToOne: false
+            referencedRelation: "solutions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      problem_upvotes: {
+        Row: {
+          created_at: string | null
+          id: string
+          problem_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          problem_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          problem_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "problem_upvotes_problem_id_fkey"
+            columns: ["problem_id"]
+            isOneToOne: false
+            referencedRelation: "problems"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      problems: {
+        Row: {
+          category: string
+          created_at: string | null
+          description: string
+          id: string
+          title: string
+          updated_at: string | null
+          upvotes: number | null
+          user_id: string
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          description: string
+          id?: string
+          title: string
+          updated_at?: string | null
+          upvotes?: number | null
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          description?: string
+          id?: string
+          title?: string
+          updated_at?: string | null
+          upvotes?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          created_at: string | null
+          full_name: string | null
+          id: string
+          updated_at: string | null
+          username: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id: string
+          updated_at?: string | null
+          username?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string | null
+          username?: string | null
+        }
+        Relationships: []
+      }
+      solution_upvotes: {
+        Row: {
+          created_at: string | null
+          id: string
+          solution_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          solution_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          solution_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "solution_upvotes_solution_id_fkey"
+            columns: ["solution_id"]
+            isOneToOne: false
+            referencedRelation: "solutions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      solutions: {
+        Row: {
+          created_at: string | null
+          description: string
+          id: string
+          problem_id: string
+          status: string | null
+          title: string
+          updated_at: string | null
+          upvotes: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          description: string
+          id?: string
+          problem_id: string
+          status?: string | null
+          title: string
+          updated_at?: string | null
+          upvotes?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string
+          id?: string
+          problem_id?: string
+          status?: string | null
+          title?: string
+          updated_at?: string | null
+          upvotes?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "solutions_problem_id_fkey"
+            columns: ["problem_id"]
+            isOneToOne: false
+            referencedRelation: "problems"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
