@@ -16,8 +16,6 @@ const Auth = () => {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  
   const { signIn, signUp, signInWithGoogle, signInWithGithub, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -31,12 +29,15 @@ const Auth = () => {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
 
     const { error } = await signIn(email, password);
     
     if (error) {
-      setError(error.message);
+      toast({
+        title: "Error signing in",
+        description: error.message,
+        variant: "destructive",
+      });
     } else {
       toast({
         title: "Welcome back!",
@@ -50,12 +51,15 @@ const Auth = () => {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
 
     const { error } = await signUp(email, password, { full_name: fullName });
     
     if (error) {
-      setError(error.message);
+      toast({
+        title: "Error signing up",
+        description: error.message,
+        variant: "destructive",
+      });
     } else {
       toast({
         title: "Account created!",
@@ -70,7 +74,11 @@ const Auth = () => {
     setLoading(true);
     const { error } = await signInWithGoogle();
     if (error) {
-      setError(error.message);
+      toast({
+        title: "Error signing in with Google",
+        description: error.message,
+        variant: "destructive",
+      });
       setLoading(false);
     }
   };
@@ -79,7 +87,11 @@ const Auth = () => {
     setLoading(true);
     const { error } = await signInWithGithub();
     if (error) {
-      setError(error.message);
+      toast({
+        title: "Error signing in with Github",
+        description: error.message,
+        variant: "destructive",
+      });
       setLoading(false);
     }
   };
@@ -204,12 +216,6 @@ const Auth = () => {
                 GitHub
               </Button>
             </div>
-
-            {error && (
-              <Alert className="mt-4">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
           </CardContent>
         </Card>
       </div>

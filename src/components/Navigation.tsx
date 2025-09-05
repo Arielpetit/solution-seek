@@ -2,21 +2,32 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { TrendingUp, Plus, User, Home, LogOut, Settings, Bell, LayoutGrid, Check } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { User, LogOut, Settings, Bell, LayoutGrid, Check, Moon, Sun, Search } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "./ThemeProvider";
 import { useToast } from "@/hooks/use-toast";
 import { useNotifications, Notification } from "@/hooks/useNotifications";
 import { formatDistanceToNow } from "date-fns";
 
+import { Input } from "./ui/input";
+import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+
 const Navigation = () => {
-  const location = useLocation();
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const { setTheme } = useTheme();
 
-  const isActive = (path: string) => {
-    return location.pathname === path;
+  const [searchQuery, setSearchQuery] = useState("");
+  const navigate = useNavigate();
+
+  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/search?q=${searchQuery.trim()}`);
+    }
   };
 
   const handleSignOut = async () => {
@@ -36,51 +47,23 @@ const Navigation = () => {
   };
 
   return (
-    <nav className="bg-card border-b border-border shadow-card">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+    <nav className="fixed top-0 right-0 z-30 w-full bg-card border-b border-border shadow-card">
+      <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">P</span>
-            </div>
-            <span className="text-xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-              ProblemBoard
-            </span>
-          </Link>
-
-          {/* Navigation Links */}
-          <div className="hidden md:flex items-center space-x-1">
-            <Link to="/">
-              <Button 
-                variant={isActive("/") ? "secondary" : "ghost"} 
-                className="flex items-center space-x-2"
-              >
-                <Home size={16} />
-                <span>Feed</span>
-              </Button>
-            </Link>
-            <Link to="/trending">
-              <Button 
-                variant={isActive("/trending") ? "secondary" : "ghost"} 
-                className="flex items-center space-x-2"
-              >
-                <TrendingUp size={16} />
-                <span>Trending</span>
-              </Button>
-            </Link>
-            <Link to="/post">
-              <Button 
-                variant={isActive("/post") ? "secondary" : "ghost"} 
-                className="flex items-center space-x-2"
-              >
-                <Plus size={16} />
-                <span>Post Problem</span>
-              </Button>
-            </Link>
+          <div className="flex items-center">
+            <img src="/problemhub.png" alt="ProblemHub Logo" className="w-32 h-32" />
           </div>
-
-          {/* User Actions */}
+          <div className="flex-1 flex justify-center px-8">
+            <form onSubmit={handleSearch} className="relative w-full max-w-lg">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search in ProblemHub"
+                className="pl-9 rounded-full"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </form>
+          </div>
           <div className="flex items-center space-x-2">
             {user ? (
               <>
@@ -103,22 +86,49 @@ const Navigation = () => {
                     />
                   </PopoverContent>
                 </Popover>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                      <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                      <span className="sr-only">Toggle theme</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setTheme("light")}>
+                      Light
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setTheme("light2")}>
+                      Light 2
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setTheme("dark")}>
+                      Dark
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setTheme("system")}>
+                      System
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                      <Avatar className="h-8 w-8">
+                    <Button variant="ghost" size="icon">
+                      <User size={16} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-56" align="end" forceMount>
+                    <div className="flex items-center p-2">
+                      <Avatar className="h-9 w-9 mr-2">
                         <AvatarImage src={user.user_metadata?.avatar_url} alt={user.user_metadata?.full_name} />
                         <AvatarFallback>
                           {user.user_metadata?.full_name?.charAt(0) || user.email?.charAt(0)?.toUpperCase() || 'U'}
                         </AvatarFallback>
                       </Avatar>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-56" align="end" forceMount>
-                    <div className="flex flex-col space-y-1 px-2 py-1.5">
-                      <p className="text-sm font-medium leading-none">{user.user_metadata?.full_name || 'User'}</p>
-                      <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+                      <div>
+                        <p className="text-sm font-medium leading-none">{user.user_metadata?.full_name || 'User'}</p>
+                        <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+                      </div>
                     </div>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>

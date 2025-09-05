@@ -267,6 +267,7 @@ export type Database = {
           created_at: string | null
           description: string
           id: string
+          image_url: string | null
           title: string
           updated_at: string | null
           upvotes: number | null
@@ -277,6 +278,7 @@ export type Database = {
           created_at?: string | null
           description: string
           id?: string
+          image_url?: string | null
           title: string
           updated_at?: string | null
           upvotes?: number | null
@@ -287,6 +289,7 @@ export type Database = {
           created_at?: string | null
           description?: string
           id?: string
+          image_url?: string | null
           title?: string
           updated_at?: string | null
           upvotes?: number | null

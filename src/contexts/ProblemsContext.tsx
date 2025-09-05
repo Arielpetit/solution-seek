@@ -8,9 +8,10 @@ export interface Problem {
   description: string;
   category: string;
   upvotes: number;
-  downvotes: number;
+  downvotes?: number;
   created_at: string;
   user_id: string;
+  image_url?: string;
   profiles?: {
     full_name: string;
     username: string;
@@ -23,10 +24,12 @@ export interface Problem {
 
 interface ProblemsContextType {
   problems: Problem[];
+  setProblems: React.Dispatch<React.SetStateAction<Problem[]>>;
   loading: boolean;
   refetch: () => void;
   handleUpvote: (problemId: string) => void;
   handleDownvote: (problemId: string) => void;
+  createProblem: (problem: Omit<Problem, 'id' | 'created_at' | 'upvotes' | 'user_id'>, image: File | null) => Promise<void>;
 }
 
 const ProblemsContext = createContext<ProblemsContextType | undefined>(undefined);
@@ -75,7 +78,7 @@ export const ProblemsProvider = ({ children }: { children: ReactNode }) => {
 
       setProblems(processedProblems);
     } catch (error) {
-      console.error('Error fetching problems:', error);
+      throw new Error("Failed to fetch problems");
     } finally {
       setLoading(false);
     }
@@ -88,19 +91,51 @@ export const ProblemsProvider = ({ children }: { children: ReactNode }) => {
   const handleUpvote = async (problemId: string) => {
     if (!user) return;
     const { error } = await supabase.rpc('handle_problem_upvote', { problem_id_arg: problemId, user_id_arg: user.id });
-    if (error) console.error('Error upvoting:', error);
+    if (error) {
+      throw new Error("Failed to upvote");
+    }
     else fetchProblems();
   };
 
   const handleDownvote = async (problemId: string) => {
     if (!user) return;
     const { error } = await supabase.rpc('handle_problem_downvote', { problem_id_arg: problemId, user_id_arg: user.id });
-    if (error) console.error('Error downvoting:', error);
+    if (error) {
+      throw new Error("Failed to downvote");
+    }
     else fetchProblems();
   };
 
+  const createProblem = async (problem: Omit<Problem, 'id' | 'created_at' | 'upvotes' | 'user_id'>, image: File | null) => {
+    if (!user) return;
+
+    let imageUrl = null;
+    if (image) {
+      const { data: imageData, error: imageError } = await supabase.storage
+        .from('problem-images')
+        .upload(`${user.id}/${Date.now()}`, image);
+
+      if (imageError) {
+        throw new Error(imageError.message || 'Failed to upload image.');
+      }
+      
+      const { data: publicUrlData } = supabase.storage.from('problem-images').getPublicUrl(imageData.path);
+      imageUrl = publicUrlData.publicUrl;
+    }
+
+    const { error } = await supabase.from('problems').insert([
+      { ...problem, user_id: user.id, image_url: imageUrl },
+    ]);
+
+    if (error) {
+      throw new Error(error.message || 'Failed to create problem.');
+    } else {
+      fetchProblems();
+    }
+  };
+
   return (
-    <ProblemsContext.Provider value={{ problems, loading, refetch: fetchProblems, handleUpvote, handleDownvote }}>
+    <ProblemsContext.Provider value={{ problems, setProblems, loading, refetch: fetchProblems, handleUpvote, handleDownvote, createProblem }}>
       {children}
     </ProblemsContext.Provider>
   );
