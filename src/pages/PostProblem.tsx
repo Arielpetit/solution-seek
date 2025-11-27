@@ -1,3 +1,4 @@
+import Sidebar from "@/components/Sidebar";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Lightbulb } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "@/hooks/use-toast";
 import { useProblems } from "@/contexts/ProblemsContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,10 +18,11 @@ const PostProblem = () => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
+  const [image, setImage] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const { refetch: refetchProblems } = useProblems();
+  // No longer destructuring toast from useToast, as toast is directly exported
+  const { createProblem } = useProblems();
   const { user } = useAuth();
 
   const categories = [
@@ -53,29 +55,33 @@ const PostProblem = () => {
       return;
     }
 
+    if (image) {
+      const allowedTypes = ["image/jpeg", "image/png", "image/gif", "video/mp4", "video/webm"];
+      if (!allowedTypes.includes(image.type)) {
+        toast({
+          title: "Invalid File Type",
+          description: "Only images (JPEG, PNG, GIF) and videos (MP4, WebM) are allowed.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    
     setIsSubmitting(true);
 
     try {
-      const { error } = await supabase.from("problems").insert({
-        title,
-        description,
-        category,
-        user_id: user.id,
-      });
-
-      if (error) throw error;
+      await createProblem({ title, description, category }, image);
 
       toast({
         title: "Problem Posted Successfully!",
         description: "Your problem has been shared with the community.",
       });
-      refetchProblems();
       navigate("/");
     } catch (error) {
-      console.error("Error posting problem:", error);
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred. Please try again.";
       toast({
-        title: "Error",
-        description: "There was an error posting your problem. Please try again.",
+        title: "Error Posting Problem",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -84,12 +90,13 @@ const PostProblem = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navigation />
-      
-      <main className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-3 mb-4">
+    <div className="flex min-h-screen bg-background">
+      <Sidebar />
+      <div className="flex-1">
+        <Navigation />
+        <main className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center mb-8">
+            <div className="flex items-center justify-center gap-3 mb-4">
             <Plus className="text-primary" size={32} />
             <h1 className="text-3xl sm:text-4xl font-bold">
               <span className="bg-gradient-primary bg-clip-text text-transparent">
@@ -161,6 +168,17 @@ const PostProblem = () => {
                 </p>
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="image">Optional Image</Label>
+                <Input
+                  id="image"
+                  type="file"
+                  accept="image/*,video/*" /* Added accept attribute for images and videos */
+                  onChange={(e) => setImage(e.target.files ? e.target.files[0] : null)}
+                  className="bg-background border-border"
+                />
+              </div>
+
               <div className="bg-accent/20 p-4 rounded-lg border border-accent/30">
                 <h4 className="font-medium text-foreground mb-2">💡 Tips for a great problem post:</h4>
                 <ul className="text-sm text-muted-foreground space-y-1">
@@ -191,7 +209,8 @@ const PostProblem = () => {
             </form>
           </CardContent>
         </Card>
-      </main>
+        </main>
+      </div>
     </div>
   );
 };

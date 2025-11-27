@@ -38,12 +38,16 @@ export default {
 					foreground: 'hsl(var(--destructive-foreground))'
 				},
 				success: {
-					DEFAULT: 'hsl(var(--success))',
-					foreground: 'hsl(var(--success-foreground))'
+				  DEFAULT: 'hsl(var(--success))',
+				  foreground: 'hsl(var(--success-foreground))'
+				},
+				warning: { /* Added warning color */
+				  DEFAULT: 'hsl(var(--warning))',
+				  foreground: 'hsl(var(--warning-foreground))'
 				},
 				muted: {
-					DEFAULT: 'hsl(var(--muted))',
-					foreground: 'hsl(var(--muted-foreground))'
+				  DEFAULT: 'hsl(var(--muted))',
+				  foreground: 'hsl(var(--muted-foreground))'
 				},
 				accent: {
 					DEFAULT: 'hsl(var(--accent))',
@@ -111,5 +115,5 @@ export default {
 			}
 		}
 	},
-	plugins: [require("tailwindcss-animate")],
+	plugins: [require("tailwindcss-animate")], // Using require due to potential ESM conflict
 } satisfies Config;

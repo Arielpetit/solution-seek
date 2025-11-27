@@ -1,3 +1,4 @@
+import Sidebar from "@/components/Sidebar";
 import Navigation from "@/components/Navigation";
 import { useProblems } from "@/contexts/ProblemsContext";
 import ProblemCardV2 from "@/components/ProblemCardV2";
@@ -14,11 +15,12 @@ const Trending = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navigation />
-      
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
+    <div className="flex min-h-screen bg-background">
+      <Sidebar />
+      <div className="flex-1">
+        <Navigation />
+        <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Header */}
         <div className="text-center mb-12">
           <div className="flex items-center justify-center gap-3 mb-4">
             <TrendingUp className="text-primary" size={32} />
@@ -88,7 +90,8 @@ const Trending = () => {
             Join the discussion and help validate solutions, or start building!
           </p>
         </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 };

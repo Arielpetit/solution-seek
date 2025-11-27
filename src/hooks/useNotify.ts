@@ -14,18 +14,20 @@ export const useNotify = () => {
     sourceUserId: string,
     linkTo: string
   ) => {
-    try {
-      const { error } = await supabase.from('notifications').insert({
-        user_id: userId,
-        type,
-        data,
-        source_user_id: sourceUserId,
-        link_to: linkTo,
-      });
-      if (error) throw error;
-    } catch (error) {
+    const { error } = await supabase.from('notifications').insert({
+      user_id: userId,
+      type,
+      data,
+      source_user_id: sourceUserId,
+      link_to: linkTo,
+    });
+
+    if (error) {
       console.error('Error creating notification:', error);
+      return error;
     }
+
+    return null;
   };
 
   return { createNotification };

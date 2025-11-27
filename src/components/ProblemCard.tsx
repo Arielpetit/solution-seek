@@ -14,6 +14,7 @@ interface Problem {
   author: string;
   timeAgo: string;
   isUpvoted?: boolean;
+  image_url?: string;
 }
 
 interface ProblemCardProps {
@@ -74,9 +75,14 @@ const ProblemCard = ({ problem }: ProblemCardProps) => {
       </CardHeader>
       
       <CardContent className="pt-0">
+        {problem.image_url && (
+          <div className="mb-4">
+            <img src={problem.image_url} alt={problem.title} className="w-full h-auto rounded-lg" />
+          </div>
+        )}
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge 
+            <Badge
               variant="outline" 
               className={categoryColors[problem.category] || categoryColors.other}
             >

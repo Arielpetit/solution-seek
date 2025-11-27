@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import Navigation from '@/components/Navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -65,7 +64,6 @@ const Dashboard = () => {
       if (error) throw error;
       setMySolutions(data as SolutionWithFunding[]);
     } catch (error) {
-      console.error('Error fetching my solutions:', error);
       toast({ title: "Error", description: "Failed to fetch your solutions.", variant: "destructive" });
     }
   };
@@ -90,7 +88,6 @@ const Dashboard = () => {
       if (error) throw error;
       setRequests(data as CollaborationRequest[]);
     } catch (error) {
-      console.error('Error fetching collaboration requests:', error);
       toast({ title: "Error", description: "Failed to fetch collaboration requests.", variant: "destructive" });
     } finally {
       setLoading(false);
@@ -124,7 +121,6 @@ const Dashboard = () => {
         }
       }
     } catch (error) {
-      console.error('Error updating request status:', error);
       toast({ title: "Error", description: "Failed to update request status.", variant: "destructive" });
     }
   };
@@ -188,34 +184,31 @@ const Dashboard = () => {
   );
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navigation />
-      <main className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
-        <Tabs defaultValue="requests">
-          <TabsList>
-            <TabsTrigger value="requests">Collaboration Requests</TabsTrigger>
-            <TabsTrigger value="solutions">My Solutions</TabsTrigger>
-          </TabsList>
-          <TabsContent value="requests">
-            <Card>
-              <CardHeader>
-                <CardTitle>Collaboration Requests</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {loading ? <p>Loading...</p> : requests.filter(r => r.status === 'pending').map(request => (
-                  <RequestCard key={request.id} request={request} />
-                ))}
-                {!loading && requests.filter(r => r.status === 'pending').length === 0 && <p>No pending requests.</p>}
-              </CardContent>
-            </Card>
-          </TabsContent>
-          <TabsContent value="solutions">
-            {loading ? <p>Loading...</p> : <MySolutions solutions={mySolutions} />}
-          </TabsContent>
-        </Tabs>
-      </main>
-    </div>
+    <main className="max-w-4xl mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
+      <Tabs defaultValue="requests">
+        <TabsList>
+          <TabsTrigger value="requests">Collaboration Requests</TabsTrigger>
+          <TabsTrigger value="solutions">My Solutions</TabsTrigger>
+        </TabsList>
+        <TabsContent value="requests">
+          <Card>
+            <CardHeader>
+              <CardTitle>Collaboration Requests</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {loading ? <p>Loading...</p> : requests.filter(r => r.status === 'pending').map(request => (
+                <RequestCard key={request.id} request={request} />
+              ))}
+              {!loading && requests.filter(r => r.status === 'pending').length === 0 && <p>No pending requests.</p>}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="solutions">
+          {loading ? <p>Loading...</p> : <MySolutions solutions={mySolutions} />}
+        </TabsContent>
+      </Tabs>
+    </main>
   );
 };
 
