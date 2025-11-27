@@ -1,65 +1,119 @@
-name: Perform a code review when a pull request is created.
+name: Test Custom Endpoint - PR Review
+
+# This tests the action as a real user would use it
 on:
+  workflow_dispatch:
   pull_request:
-    types: [opened]
+    types: [opened, synchronize]
 
 jobs:
-  codex:
+  test-pr-review:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    outputs:
-      final_message: ${{ steps.run_codex.outputs.final-message }}
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          # Explicitly check out the PR's merge commit.
-          ref: refs/pull/${{ github.event.pull_request.number }}/merge
-
-      - name: Pre-fetch base and head refs for the PR
-        run: |
-          git fetch --no-tags origin \
-            ${{ github.event.pull_request.base.ref }} \
-            +refs/pull/${{ github.event.pull_request.number }}/head
-
-      # If you want Codex to build and run code, install any dependencies that
-      # need to be downloaded before the "Run Codex" step because Codex's
-      # default sandbox disables network access.
-
-      - name: Run Codex
-        id: run_codex
-        uses: adorsys/codex-action@v1.0.1
-        with:
-          api-key: ${{ secrets.API_KEY }}
-          api-base-url: ${{ secrets.API_BASE_URL }}
-          model: ${{ secrets.MODEL }}
-          prompt: |
-            You are reviewing PR #${{ github.event.pull_request.number }} with full codebase exploration.
-            
-            Available tools: list_dir, grep_files, read_file
-            Use these to understand context before reviewing.
-            
-            PR: ${{ github.event.pull_request.title }}
-            ${{ github.event.pull_request.body }}
-
-  post_feedback:
-    runs-on: ubuntu-latest
-    needs: codex
-    if: needs.codex.outputs.final_message != ''
-    permissions:
-      issues: write
       pull-requests: write
+
     steps:
-      - name: Report Codex feedback
-        uses: actions/github-script@v7
-        env:
-          CODEX_FINAL_MESSAGE: ${{ needs.codex.outputs.final_message }}
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          github-token: ${{ github.token }}
+          fetch-depth: 0
+
+      - name: Prepare review prompt with smart truncation
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }}:${{ github.event.pull_request.base.ref }}
+          DIFF=$(git diff ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} || echo "No changes found")
+          
+          # Get diff stats for summary
+          DIFF_STATS=$(git diff --stat ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
+          
+          # Calculate diff size and truncate if needed (target max 200KB)
+          DIFF_SIZE=${#DIFF}
+          MAX_SIZE=200000
+          
+          if [ $DIFF_SIZE -gt $MAX_SIZE ]; then
+            echo "⚠️ Large diff detected ($DIFF_SIZE chars), truncating to first $MAX_SIZE chars"
+            DIFF="${DIFF:0:$MAX_SIZE}"
+            TRUNCATED=true
+          else
+            TRUNCATED=false
+          fi
+          
+          cat > /tmp/review-prompt.txt << 'EOF'
+          You are reviewing a pull request with FULL CODEBASE EXPLORATION capabilities.
+
+          ## Available Tools
+          Before reviewing, you can use these tools to explore the codebase:
+          - list_dir - List files and directories to understand project structure
+          - grep_files - Search for code patterns across the codebase
+          - read_file - Read any file to understand context
+
+          ## Review Strategy
+          1. Use list_dir to understand the project structure
+          2. Use grep_files to find related code patterns
+          3. Use read_file to examine files related to the changes
+          4. Provide comprehensive, context-aware feedback
+
+          IMPORTANT: After exploring, you MUST provide a final review in this format:
+
+          ## PR Review Summary
+          **Intent:** [one-line summary]
+
+          ### Issues to Address
+          1. [file:line] - [problem + suggestion]
+
+          ### Suggestions
+          - [improvement ideas]
+
+          ### Good Practices
+          - [positive notes]
+
+          ---
+
+          PR Title: ${{ github.event.pull_request.title }}
+          PR Description: ${{ github.event.pull_request.body }}
+
+          Diff Statistics:
+          EOF
+          echo "$DIFF_STATS" >> /tmp/review-prompt.txt
+          echo "" >> /tmp/review-prompt.txt
+          
+          if [ "$TRUNCATED" = true ]; then
+            echo " Note: This is a large PR. Diff has been truncated for review. Focus on the changes shown." >> /tmp/review-prompt.txt
+            echo "" >> /tmp/review-prompt.txt
+          fi
+          
+          echo "Code Changes:" >> /tmp/review-prompt.txt
+          echo "$DIFF" >> /tmp/review-prompt.txt
+
+      - name: Review code with custom AI endpoint
+        id: review
+        uses: ./
+        with:
+          api-key: ${{ secrets.CUSTOM_API_KEY }}
+          api-base-url: ${{ secrets.CUSTOM_API_BASE_URL }}
+          model: ${{ secrets.CUSTOM_MODEL }}
+          prompt-file: /tmp/review-prompt.txt
+          working-directory: ${{ github.workspace }}
+
+      - name: Post review comment
+        if: github.event_name == 'pull_request' && steps.review.outputs.final-message != ''
+        uses: actions/github-script@v7
+        with:
           script: |
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              body: process.env.CODEX_FINAL_MESSAGE,
+              issue_number: context.issue.number,
+              body: '##  AI Code Review\n\n' + process.env.REVIEW
             });
+        env:
+          REVIEW: ${{ steps.review.outputs.final-message }}
+
+      - name: Show results
+        run: |
+          echo " Test completed!"
+          echo "AI endpoint used: ${{ secrets.CUSTOM_API_BASE_URL }}"
+          echo ""
+          echo " Review output:"
+          echo "${{ steps.review.outputs.final-message }}"
