@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Lightbulb } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "@/hooks/use-toast";
 import { useProblems } from "@/contexts/ProblemsContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,7 +21,7 @@ const PostProblem = () => {
   const [image, setImage] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
-  const { toast } = useToast();
+  // No longer destructuring toast from useToast, as toast is directly exported
   const { createProblem } = useProblems();
   const { user } = useAuth();
 
@@ -55,6 +55,18 @@ const PostProblem = () => {
       return;
     }
 
+    if (image) {
+      const allowedTypes = ["image/jpeg", "image/png", "image/gif", "video/mp4", "video/webm"];
+      if (!allowedTypes.includes(image.type)) {
+        toast({
+          title: "Invalid File Type",
+          description: "Only images (JPEG, PNG, GIF) and videos (MP4, WebM) are allowed.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    
     setIsSubmitting(true);
 
     try {
@@ -161,6 +173,7 @@ const PostProblem = () => {
                 <Input
                   id="image"
                   type="file"
+                  accept="image/*,video/*" /* Added accept attribute for images and videos */
                   onChange={(e) => setImage(e.target.files ? e.target.files[0] : null)}
                   className="bg-background border-border"
                 />

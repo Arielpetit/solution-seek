@@ -1,4 +1,3 @@
-import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -25,6 +24,8 @@ import ProblemHubRules from "./pages/ProblemHubRules";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import UserAgreement from "./pages/UserAgreement";
 import Accessibility from "./pages/Accessibility";
+import ForgotPassword from "./pages/ForgotPassword";
+import UpdatePassword from "./pages/UpdatePassword";
 
 const queryClient = new QueryClient();
 
@@ -33,12 +34,15 @@ const App = () => (
     <AuthProvider>
       <ThemeProvider>
         <TooltipProvider>
-          <Toaster />
-          <Sonner />
+          <Sonner
+            richColors
+          />
           <ProblemsProvider>
             <BrowserRouter>
               <Routes>
                 <Route path="/auth" element={<Auth />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/update-password" element={<UpdatePassword />} />
                 <Route
                   path="/*"
                   element={

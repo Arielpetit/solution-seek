@@ -20,5 +20,7 @@ dist-ssr
 *.suo
 *.ntvs*
 *.njsproj
+*.env
 *.sln
 *.sw?
+.env.example

@@ -43,6 +43,9 @@ All colors MUST be HSL.
     --success: 142 76% 36%;
     --success-foreground: 355.7 100% 97.3%;
 
+    --warning: 350 70% 40%; /* Maroon color for warning */
+    --warning-foreground: 0 0% 98%;
+
     /* Borders and inputs */
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
