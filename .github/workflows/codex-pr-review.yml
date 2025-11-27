@@ -90,9 +90,9 @@ jobs:
         id: review
         uses: ./
         with:
-          api-key: ${{ secrets.CUSTOM_API_KEY }}
-          api-base-url: ${{ secrets.CUSTOM_API_BASE_URL }}
-          model: ${{ secrets.CUSTOM_MODEL }}
+          api-key: ${{ secrets.API_KEY }}
+          api-base-url: ${{ secrets.API_BASE_URL }}
+          model: ${{ secrets.MODEL }}
           prompt-file: /tmp/review-prompt.txt
           working-directory: ${{ github.workspace }}
 
@@ -113,7 +113,7 @@ jobs:
       - name: Show results
         run: |
           echo " Test completed!"
-          echo "AI endpoint used: ${{ secrets.CUSTOM_API_BASE_URL }}"
+          echo "AI endpoint used: ${{ secrets.API_BASE_URL }}"
           echo ""
           echo " Review output:"
           echo "${{ steps.review.outputs.final-message }}"
